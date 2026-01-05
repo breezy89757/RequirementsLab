@@ -1,0 +1,178 @@
+@page "/plan"
+@using RequirementsLab.Models
+@using RequirementsLab.Services
+@using Markdig
+@inject ImplementationPlanService PlanService
+@inject NavigationManager Navigation
+
+<PageTitle>實作規劃書 - RequirementsLab</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex align-items-center mb-4">
+        <button class="btn btn-outline-secondary me-3" @onclick="GoBack">
+            <i class="bi bi-arrow-left"></i> 返回
+        </button>
+        <h2 class="mb-0">📋 實作規劃書</h2>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
+            <h4 class="text-light">🤖 AI 正在撰寫實作規劃書...</h4>
+            <p class="text-muted">這可能需要 30-60 秒，請稍候...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(planMarkdown))
+    {
+        <div class="row">
+            <div class="col-lg-10 mx-auto">
+                <div class="card bg-dark border-secondary">
+                    <div class="card-header border-secondary d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-file-earmark-text me-2"></i>@solution?.Name</h5>
+                        <div>
+                            <button class="btn btn-sm btn-outline-info me-2" @onclick="CopyToClipboard">
+                                <i class="bi bi-clipboard"></i> 複製
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" @onclick="DownloadMarkdown">
+                                <i class="bi bi-download"></i> 下載 .md
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body markdown-content" style="max-height: 70vh; overflow-y: auto;">
+                        @((MarkupString)renderedHtml)
+                    </div>
+                </div>
+
+                @if (showCopied)
+                {
+                    <div class="alert alert-success mt-3">
+                        <i class="bi bi-check-circle me-2"></i>已複製到剪貼簿！
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            缺少必要資料，請返回重新選擇方案。
+        </div>
+    }
+</div>
+
+<style>
+    .markdown-content h1 { font-size: 1.75rem; margin-top: 1.5rem; color: #e2e8f0; }
+    .markdown-content h2 { font-size: 1.35rem; margin-top: 1.25rem; color: #cbd5e1; border-bottom: 1px solid #334155; padding-bottom: 0.5rem; }
+    .markdown-content h3 { font-size: 1.1rem; margin-top: 1rem; color: #94a3b8; }
+    .markdown-content p { color: #cbd5e1; line-height: 1.7; }
+    .markdown-content ul, .markdown-content ol { color: #cbd5e1; }
+    .markdown-content table { width: 100%; margin: 1rem 0; border-collapse: collapse; }
+    .markdown-content th, .markdown-content td { border: 1px solid #475569; padding: 0.5rem; color: #e2e8f0; }
+    .markdown-content th { background: #1e293b; }
+    .markdown-content pre { background: #0f172a; padding: 1rem; border-radius: 8px; overflow-x: auto; }
+    .markdown-content code { color: #22d3ee; }
+    .markdown-content pre.mermaid { background: #1e293b; text-align: center; padding: 1.5rem; }
+</style>
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? Solution { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Input { get; set; }
+
+    private SolutionOption? solution;
+    private RequirementInput? input;
+    private string planMarkdown = "";
+    private string renderedHtml = "";
+    private bool isLoading = true;
+    private bool showCopied = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(Solution))
+            {
+                var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(Solution));
+                solution = System.Text.Json.JsonSerializer.Deserialize<SolutionOption>(json);
+            }
+            if (!string.IsNullOrEmpty(Input))
+            {
+                var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(Input));
+                input = System.Text.Json.JsonSerializer.Deserialize<RequirementInput>(json);
+            }
+
+            if (solution != null && input != null)
+            {
+                planMarkdown = await PlanService.GeneratePlanAsync(input, solution);
+                
+                // Extract mermaid blocks BEFORE Markdig processing
+                // Replace mermaid code blocks with placeholder divs
+                var mermaidPattern = @"```mermaid\s*([\s\S]*?)```";
+                var mermaidBlocks = new List<string>();
+                planMarkdown = System.Text.RegularExpressions.Regex.Replace(
+                    planMarkdown,
+                    mermaidPattern,
+                    m => {
+                        var index = mermaidBlocks.Count;
+                        mermaidBlocks.Add(m.Groups[1].Value.Trim());
+                        return $"%%MERMAID_{index}%%";
+                    }
+                );
+                
+                // Render Markdown to HTML
+                var pipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
+                renderedHtml = Markdown.ToHtml(planMarkdown, pipeline);
+                
+                // Replace placeholders with actual mermaid divs
+                for (int i = 0; i < mermaidBlocks.Count; i++)
+                {
+                    renderedHtml = renderedHtml.Replace(
+                        $"<p>%%MERMAID_{i}%%</p>",
+                        $"<div class=\"mermaid\">{System.Web.HttpUtility.HtmlEncode(mermaidBlocks[i])}</div>"
+                    );
+                    // Also handle case without <p> wrapper
+                    renderedHtml = renderedHtml.Replace(
+                        $"%%MERMAID_{i}%%",
+                        $"<div class=\"mermaid\">{System.Web.HttpUtility.HtmlEncode(mermaidBlocks[i])}</div>"
+                    );
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            planMarkdown = $"錯誤: {ex.Message}";
+            renderedHtml = $"<p class='text-danger'>錯誤: {ex.Message}</p>";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private async Task CopyToClipboard()
+    {
+        // Note: In production, use JS interop for clipboard
+        showCopied = true;
+        await Task.Delay(2000);
+        showCopied = false;
+    }
+
+    private async Task DownloadMarkdown()
+    {
+        var fileName = $"implementation-plan-{DateTime.Now:yyyyMMdd-HHmm}.md";
+        var bytes = System.Text.Encoding.UTF8.GetBytes(planMarkdown);
+        var base64 = Convert.ToBase64String(bytes);
+        
+        // Using inline JS for download
+        await Task.CompletedTask; // Placeholder - needs JS interop
+    }
+}

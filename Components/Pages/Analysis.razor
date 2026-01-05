@@ -1,0 +1,145 @@
+@page "/analysis"
+@using RequirementsLab.Models
+@using RequirementsLab.Services
+@inject SolutionGeneratorService Generator
+@inject FeasibilityEvaluatorService Evaluator
+@inject NavigationManager Navigation
+
+<PageTitle>分析結果 - RequirementsLab</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex align-items-center mb-4">
+        <button class="btn btn-outline-secondary me-3" @onclick="GoBack">
+            <i class="bi bi-arrow-left"></i> 返回
+        </button>
+        <h2 class="mb-0">📊 分析結果</h2>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
+            <h4 class="text-light">@loadingMessage</h4>
+            <p class="text-muted">這可能需要 15-30 秒...</p>
+        </div>
+    }
+    else if (solutions.Count > 0)
+    {
+        <div class="row">
+            @foreach (var solution in solutions.OrderByDescending(s => s.FeasibilityScore))
+            {
+                var scoreColor = solution.FeasibilityScore >= 70 ? "success" : 
+                                 solution.FeasibilityScore >= 50 ? "warning" : "danger";
+                <div class="col-md-4 mb-4">
+                    <div class="card bg-dark border-secondary h-100">
+                        <div class="card-header border-secondary d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">@solution.Name</h5>
+                            <span class="badge bg-@scoreColor fs-6">@solution.FeasibilityScore 分</span>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-light">@solution.Description</p>
+                            
+                            <div class="mb-2">
+                                <span class="badge bg-secondary me-1">複雜度: @solution.Complexity</span>
+                            </div>
+                            
+                            <p class="small text-muted mb-2">
+                                <strong>成本:</strong> @solution.EstimatedCost
+                            </p>
+                            <p class="small text-muted mb-2">
+                                <strong>風險:</strong> @solution.Risks
+                            </p>
+                            
+                            @if (!string.IsNullOrEmpty(solution.Recommendation))
+                            {
+                                <div class="alert alert-info py-2 small">
+                                    <i class="bi bi-lightbulb me-1"></i> @solution.Recommendation
+                                </div>
+                            }
+                        </div>
+                        <div class="card-footer border-secondary">
+                            <button class="btn btn-primary w-100" @onclick="() => GeneratePlan(solution)">
+                                <i class="bi bi-file-earmark-text me-1"></i> 產生實作規劃
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            無法產生方案，請返回重新填寫需求。
+        </div>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? Data { get; set; }
+
+    private RequirementInput input = new();
+    private List<SolutionOption> solutions = new();
+    private bool isLoading = true;
+    private string loadingMessage = "正在分析需求...";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrEmpty(Data))
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        try
+        {
+            // Decode input from query string
+            var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(Data));
+            input = System.Text.Json.JsonSerializer.Deserialize<RequirementInput>(json) ?? new();
+
+            // Step 1: Generate solutions
+            loadingMessage = "🤖 LLM 1: 正在產生解決方案...";
+            StateHasChanged();
+            solutions = await Generator.GenerateSolutionsAsync(input);
+
+            // Step 2: Evaluate each solution
+            loadingMessage = "🔍 LLM 2: 正在評估可行性...";
+            StateHasChanged();
+            
+            for (int i = 0; i < solutions.Count; i++)
+            {
+                solutions[i] = await Evaluator.EvaluateAsync(input, solutions[i]);
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            solutions = new List<SolutionOption>
+            {
+                new SolutionOption { Name = "錯誤", Description = ex.Message, FeasibilityScore = 0 }
+            };
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private void GeneratePlan(SolutionOption solution)
+    {
+        // Navigate to Plan page with selected solution
+        var solutionJson = System.Text.Json.JsonSerializer.Serialize(solution);
+        var inputJson = System.Text.Json.JsonSerializer.Serialize(input);
+        var solutionB64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(solutionJson));
+        var inputB64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(inputJson));
+        
+        Navigation.NavigateTo($"/plan?solution={solutionB64}&input={inputB64}");
+    }
+}

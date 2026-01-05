@@ -1,0 +1,138 @@
+@page "/poc"
+@using RequirementsLab.Models
+@using RequirementsLab.Services
+@inject PocTemplateService PocService
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<PageTitle>POC 下載 - RequirementsLab</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex align-items-center mb-4">
+        <button class="btn btn-outline-secondary me-3" @onclick="GoBack">
+            <i class="bi bi-arrow-left"></i> 返回
+        </button>
+        <h2 class="mb-0">📦 POC 下載</h2>
+    </div>
+
+    @if (solution != null && input != null)
+    {
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card bg-dark border-secondary">
+                    <div class="card-header border-secondary">
+                        <h5 class="mb-0"><i class="bi bi-box-seam me-2"></i>@solution.Name</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-success mb-4">
+                            <h6 class="mb-2"><i class="bi bi-check-circle me-2"></i>POC 已準備就緒</h6>
+                            <p class="mb-0 small">點擊下方按鈕下載 HTML 檔案，開啟後填入您的 Azure OpenAI 設定即可使用。</p>
+                        </div>
+
+                        <div class="mb-4">
+                            <h6>📋 方案摘要</h6>
+                            <ul class="list-unstyled text-muted small">
+                                <li><strong>目標:</strong> @input.Goal</li>
+                                <li><strong>方案:</strong> @solution.Description</li>
+                                <li><strong>可行性分數:</strong> @solution.FeasibilityScore / 100</li>
+                            </ul>
+                        </div>
+
+                        <div class="mb-4">
+                            <h6>📖 使用說明</h6>
+                            <ol class="small text-muted">
+                                <li>下載 <code>poc.html</code> 檔案</li>
+                                <li>用瀏覽器開啟</li>
+                                <li>填入 Azure OpenAI Endpoint 和 API Key</li>
+                                <li>開始測試對話</li>
+                            </ol>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-primary btn-lg" @onclick="DownloadPoc">
+                                <i class="bi bi-download me-2"></i>下載 POC (poc.html)
+                            </button>
+                            <button class="btn btn-outline-secondary" @onclick="ShowPreview">
+                                <i class="bi bi-eye me-2"></i>預覽程式碼
+                            </button>
+                        </div>
+
+                        @if (showPreview)
+                        {
+                            <div class="mt-4">
+                                <h6>程式碼預覽</h6>
+                                <pre class="bg-black p-3 rounded small text-success" style="max-height: 300px; overflow: auto;">@pocHtml</pre>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            缺少必要資料，請返回重新選擇方案。
+        </div>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? Solution { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Input { get; set; }
+
+    private SolutionOption? solution;
+    private RequirementInput? input;
+    private string pocHtml = "";
+    private bool showPreview = false;
+
+    protected override void OnInitialized()
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(Solution))
+            {
+                var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(Solution));
+                solution = System.Text.Json.JsonSerializer.Deserialize<SolutionOption>(json);
+            }
+            if (!string.IsNullOrEmpty(Input))
+            {
+                var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(Input));
+                input = System.Text.Json.JsonSerializer.Deserialize<RequirementInput>(json);
+            }
+
+            if (solution != null && input != null)
+            {
+                pocHtml = PocService.GeneratePocHtml(input, solution);
+            }
+        }
+        catch { }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private void ShowPreview()
+    {
+        showPreview = !showPreview;
+    }
+
+    private async Task DownloadPoc()
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(pocHtml);
+        var base64 = Convert.ToBase64String(bytes);
+        
+        await JS.InvokeVoidAsync("eval", $@"
+            const link = document.createElement('a');
+            link.href = 'data:text/html;base64,{base64}';
+            link.download = 'poc.html';
+            link.click();
+        ");
+    }
+}

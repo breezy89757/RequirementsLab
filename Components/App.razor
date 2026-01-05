@@ -1,0 +1,38 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <ResourcePreloader />
+    <link rel="stylesheet" href="@Assets["app.css"]" />
+    <link rel="stylesheet" href="@Assets["RequirementsLab.styles.css"]" />
+    <ImportMap />
+    <HeadOutlet @rendermode="InteractiveServer" />
+</head>
+
+<body>
+    <Routes @rendermode="InteractiveServer" />
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        // Initialize Mermaid and re-render on Blazor updates
+        mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+        
+        function renderMermaid() {
+            mermaid.run({ querySelector: '.mermaid' });
+        }
+        
+        // Run on page load and after Blazor updates
+        document.addEventListener('DOMContentLoaded', renderMermaid);
+        
+        // Observer for Blazor dynamic content
+        const observer = new MutationObserver(() => {
+            setTimeout(renderMermaid, 100);
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+    </script>
+</body>
+
+</html>

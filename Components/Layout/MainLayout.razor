@@ -1,0 +1,59 @@
+﻿@*
+    RequirementsLab - MainLayout with Theme Toggle
+    Uses data-theme attribute for global theme switching
+*@
+@inherits LayoutComponentBase
+@inject IJSRuntime JS
+
+<div class="app-shell" data-theme="@(isDarkMode ? "dark" : "light")">
+    <!-- Left Sidebar -->
+    <aside class="sidebar @(sidebarCollapsed ? "collapsed" : "")">
+        <div class="sidebar-header">
+            @if (!sidebarCollapsed)
+            {
+                <span class="logo">🧪 Lab</span>
+            }
+            <button class="btn-icon" @onclick="ToggleSidebar" title="Toggle Sidebar">
+                @(sidebarCollapsed ? "☰" : "←")
+            </button>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="/" class="nav-item">
+                <span class="icon">🏠</span>
+                @if (!sidebarCollapsed) { <span class="label">需求評估</span> }
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <button class="btn-icon theme-toggle" @onclick="ToggleTheme" title="Toggle Theme">
+                @(isDarkMode ? "☀️" : "🌙")
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="main-area">
+        <header class="top-bar">
+            <div class="breadcrumb">Dashboard</div>
+            <div class="top-actions">
+                <span class="user-avatar">👤</span>
+            </div>
+        </header>
+
+        <main class="content-area">
+            @Body
+        </main>
+    </div>
+</div>
+
+@code {
+    private bool sidebarCollapsed = false;
+    private bool isDarkMode = true; // 預設深色模式
+
+    private void ToggleSidebar() => sidebarCollapsed = !sidebarCollapsed;
+    
+    private async Task ToggleTheme()
+    {
+        isDarkMode = !isDarkMode;
+        await JS.InvokeVoidAsync("eval", $"document.documentElement.setAttribute('data-theme', '{(isDarkMode ? "dark" : "light")}')");
+    }
+}

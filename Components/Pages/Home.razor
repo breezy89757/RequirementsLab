@@ -1,0 +1,95 @@
+﻿@page "/"
+@using RequirementsLab.Models
+@inject NavigationManager Navigation
+
+<PageTitle>RequirementsLab - 需求評估</PageTitle>
+
+<div class="container py-4">
+    <div class="text-center mb-5">
+        <h1 class="display-5 fw-bold">🧪 RequirementsLab</h1>
+        <p class="lead text-secondary">LLM 需求評估與 POC 生成器</p>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card bg-dark border-secondary shadow-lg">
+                <div class="card-header border-secondary">
+                    <h5 class="mb-0"><i class="bi bi-clipboard-check me-2"></i>需求評估表單</h5>
+                </div>
+                <div class="card-body">
+                    <EditForm Model="input" OnValidSubmit="HandleSubmit">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">🎯 User 想達成什麼目標？</label>
+                            <textarea class="form-control bg-dark text-light border-secondary" rows="2" 
+                                      @bind="input.Goal" placeholder="例如：讓業務快速查詢產品規格"></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">📋 現在怎麼做？ (現行流程)</label>
+                            <textarea class="form-control bg-dark text-light border-secondary" rows="2" 
+                                      @bind="input.CurrentProcess" placeholder="例如：翻 PDF、問同事、查 ERP"></textarea>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-semibold">📥 輸入是什麼？</label>
+                                <input type="text" class="form-control bg-dark text-light border-secondary" 
+                                       @bind="input.InputType" placeholder="例如：產品名稱或型號" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-semibold">📤 期望輸出什麼？</label>
+                                <input type="text" class="form-control bg-dark text-light border-secondary" 
+                                       @bind="input.ExpectedOutput" placeholder="例如：規格表 + 建議話術" />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">💾 資料來源？</label>
+                            <input type="text" class="form-control bg-dark text-light border-secondary" 
+                                   @bind="input.DataSource" placeholder="例如：產品目錄 PDF、歷史報價單" />
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">✅ 成功標準？</label>
+                            <input type="text" class="form-control bg-dark text-light border-secondary" 
+                                   @bind="input.SuccessCriteria" placeholder="例如：80% 問題不用問人" />
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg" disabled="@isSubmitting">
+                                @if (isSubmitting)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2"></span>
+                                    <span>AI 分析中...</span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-lightning-charge-fill me-2"></i>
+                                    <span>開始分析</span>
+                                }
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private RequirementInput input = new();
+    private bool isSubmitting = false;
+
+    private async Task HandleSubmit()
+    {
+        isSubmitting = true;
+        StateHasChanged();
+
+        // Store input in session/cache for Analysis page
+        // For simplicity, using query string (in production, use state management)
+        var encoded = System.Text.Json.JsonSerializer.Serialize(input);
+        var base64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(encoded));
+        
+        Navigation.NavigateTo($"/analysis?data={base64}");
+    }
+}
