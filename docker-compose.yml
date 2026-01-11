@@ -1,0 +1,15 @@
+services:
+  requirementslab:
+    image: requirementslab:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5272:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      # Mount appsettings.json to allow runtime configuration if needed
+      # - ./appsettings.json:/app/appsettings.json
+    volumes:
+      # Persist the generated sessions if needed
+      - ./Generated:/app/Generated

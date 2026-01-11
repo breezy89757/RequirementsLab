@@ -71,5 +71,22 @@ The original robust workflow for deep feasibility analysis.
 - **UI**: Markdig (Markdown) + Mermaid.js
 - **Security**: OWASP Top 10 Audited
 
+## 🐳 Deployment (Docker)
+
+You can containerize and deploy the Agent Collaboration Hub using the included Docker template.
+
+### Build & Run
+```bash
+# Build (Local)
+docker-compose up --build
+```
+Access at `http://localhost:5272/agents`.
+
+### Production Build
+```bash
+docker build -t requirements-lab:latest .
+docker run -d -p 80:8080 requirements-lab:latest
+```
+
 ## 📄 License
 MIT
