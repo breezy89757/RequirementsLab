@@ -95,4 +95,38 @@ public class FileExtractionService
             Verb = "open"
         });
     }
+
+    public async Task<Stream?> CreateZipStreamAsync(string sessionId)
+    {
+        var path = GetSessionPath(sessionId);
+        if (!Directory.Exists(path) || !Directory.EnumerateFileSystemEntries(path).Any())
+        {
+            return null; // No files to zip
+        }
+
+        var memoryStream = new MemoryStream();
+        try
+        {
+            using (var archive = new System.IO.Compression.ZipArchive(memoryStream, System.IO.Compression.ZipArchiveMode.Create, true))
+            {
+                foreach (var filePath in Directory.GetFiles(path, "*", SearchOption.AllDirectories))
+                {
+                    var relativePath = Path.GetRelativePath(path, filePath);
+                    var entry = archive.CreateEntry(relativePath);
+                    using (var entryStream = entry.Open())
+                    using (var fileStream = File.OpenRead(filePath))
+                    {
+                        await fileStream.CopyToAsync(entryStream);
+                    }
+                }
+            }
+            memoryStream.Position = 0;
+            return memoryStream;
+        }
+        catch
+        {
+            memoryStream.Dispose();
+            throw;
+        }
+    }
 }

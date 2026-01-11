@@ -36,6 +36,7 @@ builder.Services.AddScoped<RequirementsLab.Services.QuestionnaireService>();
 // Add Blazor services
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddControllers();
 
 var app = builder.Build();
 
@@ -50,6 +51,7 @@ app.UseHttpsRedirection();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+app.MapControllers();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

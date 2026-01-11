@@ -14,9 +14,6 @@
 @using RequirementsLab.Components.Shared
 
 <div class="agent-war-room">
-    <!-- ... header ... -->
-
-
     <div class="chat-header">
         <h2>🤖 Agent Collaboration Hub</h2>
         <div class="agent-status">
@@ -24,6 +21,7 @@
             <span class="status-badge active" title="@SaAgent.Description">@SaAgent.Name</span>
             <span class="status-badge active" title="@PgAgent.Description">@PgAgent.Name</span>
             <button class="icon-btn-small" @onclick="GenerateForm" title="Manually Trigger Questionnaire Analysis">📝 Form</button>
+            <button class="icon-btn-small" @onclick="DownloadZip" title="Download Generated Code as Zip">📥 Zip</button>
             <button class="icon-btn-small" @onclick="OpenFolder" title="Open Generated Code Folder">📂 @currentSessionId</button>
         </div>
     </div>
@@ -73,8 +71,6 @@
             </div>
         }
     </div>
-
-
 
     <div class="input-area">
         <button class="icon-btn" @onclick="GenerateForm" title="Convert to Form">📝</button>
@@ -204,6 +200,7 @@
     .message.user .bubble {
         background: var(--primary-color);
         color: white;
+        opacity: 1;
     }
 
     .input-area {
@@ -256,11 +253,46 @@
     private bool isInitialized = false;
     private string streamingText = "";
     private string? currentSpeakerName = "";
+    private string currentSessionId = $"Session_{DateTime.Now:yyyyMMdd_HHmmss}";
+    private bool showQuestionnaire = false;
+    private QuestionnaireData? questionnaireData;
 
-    // Old OnInitialized removed to avoid conflict with OnInitializedAsync
-    // Manager registration is handled in OnInitializedAsync now (or lazily)
-    
+    protected override async Task OnInitializedAsync()
+    {
+        // Regenerate ID for new visit
+        currentSessionId = $"Session_{DateTime.Now:yyyyMMdd_HHmmss}";
+        
+        if (!isInitialized)
+        {
+             Manager.AddAgent(PmAgent);
+             Manager.AddAgent(SaAgent);
+             Manager.AddAgent(PgAgent);
+             isInitialized = true;
+        }
+    }
 
+    private async Task DownloadZip()
+    {
+        try
+        {
+            using var fileStream = await FileExtractor.CreateZipStreamAsync(currentSessionId);
+            if (fileStream != null)
+            {
+                var fileName = $"{currentSessionId}.zip";
+                using var streamRef = new DotNetStreamReference(fileStream);
+                await JS.InvokeVoidAsync("downloadFileFromStream", fileName, streamRef);
+            }
+            else
+            {
+                // Optionally show a toast or alert that no files exist
+                Console.WriteLine("No files to download.");
+            }
+        }
+        catch (Exception ex)
+        {
+           Console.WriteLine($"Download failed: {ex.Message}");
+        }
+    }
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
@@ -345,13 +377,6 @@
                 // AUTO-FORM TRIGGER: If PM asks questions, try to generate a form immediately
                 if (currentSpeakerName == "PM" && shouldPause)
                 {
-                    // Fire and forget (or await if we want to block). 
-                    // We await it to ensure the UI updates before the user tries to type.
-                    // We pass the text directly to avoid history race conditions, but GenerateForm uses History.
-                    // Ideally we should wait a tick for History to update? 
-                    // GroupChatManager usually updates history as it streams or after.
-                    // Let's assume History is up to date or we can rely on streamingText.
-                    // To be safe, we'll wait a brief moment.
                     await Task.Delay(100); 
                     await GenerateForm();
                 }
@@ -388,31 +413,11 @@
         await JS.InvokeVoidAsync("renderMermaid");
     }
 
-    private string currentSessionId = $"Session_{DateTime.Now:yyyyMMdd_HHmmss}";
-
-    protected override async Task OnInitializedAsync()
-    {
-        // Regenerate ID for new visit
-        currentSessionId = $"Session_{DateTime.Now:yyyyMMdd_HHmmss}";
-        
-        if (!isInitialized)
-        {
-             Manager.AddAgent(PmAgent);
-             Manager.AddAgent(SaAgent);
-             Manager.AddAgent(PgAgent);
-             isInitialized = true;
-        }
-    }
-
     private void OpenFolder()
     {
         FileExtractor.OpenGeneratedFolder(currentSessionId);
     }
     
-
-    private bool showQuestionnaire = false;
-    private QuestionnaireData? questionnaireData;
-
     private async Task GenerateForm()
     {
         // Parse the last assistant message
@@ -439,5 +444,4 @@
         userInput = responseText;
         await SendMessage();
     }
-
 }
