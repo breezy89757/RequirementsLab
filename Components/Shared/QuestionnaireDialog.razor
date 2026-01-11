@@ -1,0 +1,140 @@
+@using RequirementsLab.Models
+
+@if (Show)
+{
+    <div class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📝 @Data?.Title</h3>
+                <button class="close-btn" @onclick="Close">✖</button>
+            </div>
+            
+            <div class="modal-body">
+                @if (Data?.Questions != null)
+                {
+                    @foreach (var q in Data.Questions)
+                    {
+                        <div class="question-item">
+                            <label class="q-label">@q.Text</label>
+                            
+                            @if (q.Type == "text")
+                            {
+                                <input type="text" class="form-input" @bind="q.AnswerText" placeholder="Your Answer..." />
+                            }
+                            else if (q.Type == "radio")
+                            {
+                                <div class="options-group">
+                                    @foreach (var opt in q.Options)
+                                    {
+                                        <label class="radio-label">
+                                            <input type="radio" name="@q.Id" 
+                                                   checked="@(q.AnswerText == opt)" 
+                                                   @onchange="@(() => q.AnswerText = opt)" />
+                                            @opt
+                                        </label>
+                                    }
+                                </div>
+                            }
+                            else if (q.Type == "checkbox")
+                            {
+                                <div class="options-group">
+                                    @foreach (var opt in q.Options)
+                                    {
+                                        <label class="check-label">
+                                            <input type="checkbox" 
+                                                   checked="@(q.SelectedOptions.Contains(opt))"
+                                                   @onchange="@(e => ToggleOption(q, opt, e.Value))" />
+                                            @opt
+                                        </label>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn-cancel" @onclick="Close">Cancel</button>
+                <button class="btn-submit" @onclick="Submit">🚀 Submit Response</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .modal-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.7);
+        display: flex; justify-content: center; align-items: center;
+        z-index: 1000;
+    }
+    .modal-content {
+        background: var(--bg-card);
+        width: 600px;
+        max-width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        display: flex; flex-direction: column;
+    }
+    .modal-header {
+        padding: 1rem; border-bottom: 1px solid var(--border-color);
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    .modal-body { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; }
+    .question-item { display: flex; flex-direction: column; gap: 0.5rem; }
+    .q-label { font-weight: bold; color: var(--text-primary); }
+    .form-input { padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-primary); }
+    .options-group { display: flex; flex-direction: column; gap: 0.25rem; }
+    .radio-label, .check-label { display: flex; gap: 0.5rem; align-items: center; cursor: pointer; color: var(--text-secondary); }
+    
+    .modal-footer { padding: 1rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 1rem; }
+    .btn-submit { background: var(--primary-color); color: white; border:none; padding: 0.5rem 1.5rem; border-radius: 6px; cursor: pointer; }
+    .btn-cancel { background: transparent; color: var(--text-muted); border: 1px solid var(--border-color); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; }
+    .close-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem; }
+</style>
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public QuestionnaireData? Data { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<string> OnSubmit { get; set; }
+
+    private void Close() => OnClose.InvokeAsync();
+
+    private void ToggleOption(QuestionItem q, string option, object? value)
+    {
+        if (value is bool isChecked && isChecked)
+            q.SelectedOptions.Add(option);
+        else
+            q.SelectedOptions.Remove(option);
+    }
+
+    private async Task Submit()
+    {
+        // Format response
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("**User Response (System Generated):**");
+        sb.AppendLine();
+        
+        foreach (var q in Data!.Questions)
+        {
+            sb.AppendLine($"**{q.Text}**");
+            if (q.Type == "checkbox")
+            {
+                foreach (var opt in q.SelectedOptions)
+                    sb.AppendLine($"- [x] {opt}");
+            }
+            else
+            {
+                var ans = string.IsNullOrWhiteSpace(q.AnswerText) ? "(No Answer)" : q.AnswerText;
+                sb.AppendLine($"> {ans}");
+            }
+            sb.AppendLine();
+        }
+
+        await OnSubmit.InvokeAsync(sb.ToString());
+    }
+}

@@ -1,72 +1,75 @@
 # 🧪 RequirementsLab
 
-**LLM 需求評估與實作規劃工具** — 幫助 PM 快速評估 AI 需求可行性，並產出 SA 可用的實作規劃書。
+**AI-Powered Requirement Analysis & Code Generation**
 
-## ✨ 功能特色
+RequirementsLab now features two powerful modes for turning ideas into reality:
+1. **Agent Collaboration Hub** (New!): Interactive collaboration with a team of AI Agents.
+2. **Classic Mode**: Structured form-based requirement assessment.
 
-- 📝 **需求輸入表單** — 結構化收集專案需求
-- 🤖 **雙 LLM 架構** — LLM 1 產生方案、LLM 2 評估可行性
-- 📊 **可行性評分** — 0-100 分自動評估
-- 📋 **實作規劃書** — 含 Mermaid 架構圖、技術選型、時程估算
+---
 
-## 🚀 快速開始
+---
 
-### 1. 設定 Azure OpenAI
+## 🚀 Mode 1: Agent Collaboration Hub (Interactive)
+**Path**: `http://localhost:5272/agents`
 
-```bash
-cd RequirementsLab
-copy appsettings.template.json appsettings.json
-```
+A multi-agent system where PM, SA, and PG agents collaborate to turn your ideas into running code.
 
-編輯 `appsettings.json`：
-```json
-{
-  "AzureOpenAI": {
-    "Endpoint": "https://your-resource.openai.azure.com/",
-    "ApiKey": "your-api-key",
-    "DeploymentName": "gpt-4o"
-  }
-}
-```
+### Workflow Visualized
 
-### 2. 執行
+1. **Chat with PM**
+   Tell the PM what you want to build. The agents will discuss and verify requirements.
+   ![Chat Interface](docs/images/demo_chat.png)
 
-```bash
-dotnet run
-```
+2. **Auto-Secretary (Form Mode)**
+   Click **"📝 Form"** to review the structured requirement analysis auto-generated from the chat.
+   ![Auto Form](docs/images/demo_form.png)
 
-瀏覽器開啟 http://localhost:5272
+3. **Architecture Design**
+   The SA Agent analyzes system needs and produces professional Mermaid diagrams.
+   ![Mermaid Diagram](docs/images/demo_diagram.png)
 
-## 📦 技術棧
+4. **One-Click Execution**
+   The PG Agent writes the actual code. Click **"📂 Open Folder"** to access the generated project.
+   ![Generated Code](docs/images/demo_code.png)
 
-- .NET 9 / Blazor Server
-- Microsoft.Extensions.AI (MAI)
-- Azure OpenAI
-- Markdig (Markdown 渲染)
-- Mermaid.js (架構圖)
+---
 
-## 📁 專案結構
+## 🏛️ Mode 2: Classic Features (Structured)
+**Path**: `http://localhost:5272/` (Default)
 
-```
-RequirementsLab/
-├── Components/Pages/
-│   ├── Home.razor      # 需求輸入表單
-│   ├── Analysis.razor  # 方案分析結果
-│   └── Plan.razor      # 實作規劃書
-├── Services/
-│   ├── LlmServices.cs              # LLM 1 + LLM 2
-│   └── ImplementationPlanService.cs # 規劃書生成
-├── Models/
-│   └── RequirementModels.cs        # 資料模型
-└── wwwroot/app.css                 # 主題樣式
-```
+The original robust workflow for deep feasibility analysis.
 
-## 📸 流程
+- 📝 **Requirement Input Form**: Structured data collection for project goals and scope.
+- 🤖 **Dual LLM Architecture**: 
+  - LLM 1: Generates potential solutions.
+  - LLM 2: Evaluates feasibility (LLM-as-a-Judge).
+- 📊 **Feasibility Score**: 0-100 automated scoring.
+- 📋 **Implementation Plan**: Generates detailed "Analysis Report" and "Implementation Plan" documents with Gantt charts.
 
-```
-首頁 (填表) → 分析結果 (3方案+分數) → 實作規劃書 (Mermaid架構圖)
-```
+---
 
-## 📄 授權
+## 🛠️ Setup & Tech Stack
 
-MIT License
+1. **Configuration**:
+   Copy `appsettings.template.json` to `appsettings.json`.
+   ```json
+   {
+     "AzureOpenAI": {
+       "DeploymentName": "gpt-5.2-chat"
+     }
+   }
+   ```
+2. **Run**:
+   ```bash
+   dotnet run
+   ```
+
+**Tech Stack**:
+- **Framework**: .NET 10 Blazor Server
+- **AI Orchestration**: Microsoft.Extensions.AI (MAI)
+- **UI**: Markdig (Markdown) + Mermaid.js
+- **Security**: OWASP Top 10 Audited
+
+## 📄 License
+MIT

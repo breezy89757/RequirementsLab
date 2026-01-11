@@ -25,6 +25,14 @@ builder.Services.AddScoped<FeasibilityEvaluatorService>();
 builder.Services.AddScoped<PocTemplateService>();
 builder.Services.AddScoped<ImplementationPlanService>();
 
+// Register Agents
+builder.Services.AddScoped<RequirementsLab.Services.Agents.PMAgent>();
+builder.Services.AddScoped<RequirementsLab.Services.Agents.SAAgent>();
+builder.Services.AddScoped<RequirementsLab.Services.Agents.PGAgent>();
+builder.Services.AddTransient<RequirementsLab.Services.Agents.Infrastructure.GroupChatManager>();
+builder.Services.AddScoped<RequirementsLab.Services.FileExtractionService>();
+builder.Services.AddScoped<RequirementsLab.Services.QuestionnaireService>();
+
 // Add Blazor services
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();

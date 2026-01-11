@@ -17,19 +17,56 @@
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script>
-        // Initialize Mermaid and re-render on Blazor updates
-        mermaid.initialize({ startOnLoad: false, theme: 'dark' });
-        
-        function renderMermaid() {
-            mermaid.run({ querySelector: '.mermaid' });
+        // Initialize Mermaid with error suppression
+        mermaid.initialize({ 
+            startOnLoad: false, 
+            theme: 'dark',
+            suppressErrorRendering: true // Don't show the red box for partial content
+        });
+
+        async function renderMermaid() {
+            // Transform <code> blocks to <div> for Mermaid to pick up
+            document.querySelectorAll('code.language-mermaid').forEach(el => {
+                if (el.closest('.mermaid')) return;
+
+                if (el.parentElement.tagName === 'PRE') {
+                    const div = document.createElement('div');
+                    div.classList.add('mermaid');
+                    div.textContent = el.textContent; 
+                    el.parentElement.replaceWith(div);
+                } else {
+                    const div = document.createElement('div');
+                    div.classList.add('mermaid');
+                    div.textContent = el.textContent;
+                    el.replaceWith(div);
+                }
+            });
+
+            // Run Mermaid safely
+            try {
+                // Reset mermaid if needed? No, run checks for unprocessed .mermaid classes usually
+                // But we manually inserted .mermaid classes.
+                // We need to limit scope to avoid re-rendering unrelated static diagrams if possible, 
+                // but .mermaid selector is global.
+                await mermaid.run({ querySelector: '.mermaid' });
+            } catch (err) {
+                 // Suppress
+            }
         }
+
+
         
-        // Run on page load and after Blazor updates
+        // Expose to Blazor
+        window.renderMermaid = renderMermaid;
+
+        // Run on page load
         document.addEventListener('DOMContentLoaded', renderMermaid);
         
-        // Observer for Blazor dynamic content
+        // Observer for Blazor dynamic content (Backup)
         const observer = new MutationObserver(() => {
-            setTimeout(renderMermaid, 100);
+            // Debounce slightly
+            if (window.mermaidTimeout) clearTimeout(window.mermaidTimeout);
+            window.mermaidTimeout = setTimeout(renderMermaid, 200);
         });
         observer.observe(document.body, { childList: true, subtree: true });
     </script>

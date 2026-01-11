@@ -1,0 +1,443 @@
+@page "/agents"
+@using Microsoft.Extensions.AI
+@using RequirementsLab.Services.Agents
+@using RequirementsLab.Services.Agents.Infrastructure
+@using RequirementsLab.Services
+@using RequirementsLab.Models
+@inject GroupChatManager Manager
+@inject PMAgent PmAgent
+@inject SAAgent SaAgent
+@inject PGAgent PgAgent
+@inject IJSRuntime JS
+@inject RequirementsLab.Services.FileExtractionService FileExtractor
+@inject RequirementsLab.Services.QuestionnaireService QuestionnaireService
+@using RequirementsLab.Components.Shared
+
+<div class="agent-war-room">
+    <!-- ... header ... -->
+
+
+    <div class="chat-header">
+        <h2>🤖 Agent Collaboration Hub</h2>
+        <div class="agent-status">
+            <span class="status-badge active" title="@PmAgent.Description">@PmAgent.Name</span>
+            <span class="status-badge active" title="@SaAgent.Description">@SaAgent.Name</span>
+            <span class="status-badge active" title="@PgAgent.Description">@PgAgent.Name</span>
+            <button class="icon-btn-small" @onclick="GenerateForm" title="Manually Trigger Questionnaire Analysis">📝 Form</button>
+            <button class="icon-btn-small" @onclick="OpenFolder" title="Open Generated Code Folder">📂 @currentSessionId</button>
+        </div>
+    </div>
+
+    <div class="chat-container" id="chatContainer">
+        @foreach (var msg in Manager.History)
+        {
+            <div class="message @(msg.Role == ChatRole.User ? "user" : "assistant")">
+                <div class="avatar">
+                    @(msg.Role == ChatRole.User ? "👤" : "🤖")
+                </div>
+                <div class="message-content">
+                    @if (msg.AuthorName != null)
+                    {
+                        <div class="author-name">@msg.AuthorName</div>
+                    }
+                    <div class="bubble">
+                        @((MarkupString)Markdig.Markdown.ToHtml(msg.Text ?? ""))
+                    </div>
+                </div>
+            </div>
+        }
+        
+        @if (isThinking && !string.IsNullOrEmpty(streamingText))
+        {
+            <div class="message assistant streaming">
+                <div class="avatar">🤖</div>
+                <div class="message-content">
+                    @if (!string.IsNullOrEmpty(currentSpeakerName))
+                    {
+                        <div class="author-name">@currentSpeakerName</div>
+                    }
+                    <div class="bubble" @key="@streamingText.Length">
+                        @((MarkupString)Markdig.Markdown.ToHtml(streamingText))
+                        <span class="cursor">|</span>
+                    </div>
+                </div>
+            </div>
+        }
+        else if (isThinking)
+        {
+             <div class="message assistant thinking">
+                <div class="avatar">🤖</div>
+                <div class="bubble pulse">
+                    Thinking...
+                </div>
+            </div>
+        }
+    </div>
+
+
+
+    <div class="input-area">
+        <button class="icon-btn" @onclick="GenerateForm" title="Convert to Form">📝</button>
+        <textarea @bind="userInput" @bind:event="oninput" @onkeydown="HandleKeyDown" placeholder="Tell the PM what you want to build..."></textarea>
+        <button class="send-btn" @onclick="SendMessage" disabled="@isThinking">Send</button>
+    </div>
+    
+    <QuestionnaireDialog Show="@showQuestionnaire" Data="@questionnaireData" OnClose="@(() => showQuestionnaire = false)" OnSubmit="SubmitForm" />
+</div>
+
+<style>
+    .icon-btn {
+        background: var(--bg-muted);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        font-size: 1.2rem;
+        width: 50px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .icon-btn:hover { background: var(--bg-secondary); }
+
+    .icon-btn-small {
+        background: transparent;
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        font-size: 1rem;
+        padding: 0.2rem 0.6rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-left: 1rem;
+    }
+    .icon-btn-small:hover { background: var(--bg-muted); }
+
+    .agent-war-room {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 80px); /* Adjust based on layout */
+        max-width: 1200px;
+        margin: 0 auto;
+        background: var(--bg-card);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .chat-header {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-color);
+        background: var(--bg-secondary);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .agent-status {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 99px;
+        font-size: 0.8rem;
+        background: var(--bg-muted);
+        opacity: 0.5;
+    }
+    .status-badge.active {
+        background: var(--primary-color);
+        color: white;
+        opacity: 1;
+    }
+
+    .chat-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 2rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .message {
+        display: flex;
+        gap: 1rem;
+        max-width: 80%;
+    }
+    .message.user {
+        align-self: flex-end;
+        flex-direction: row-reverse;
+    }
+
+    .avatar {
+        font-size: 1.5rem;
+        background: var(--bg-muted);
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .message-content {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .author-name {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin-left: 0.5rem;
+    }
+    .message.user .author-name {
+        text-align: right;
+        margin-right: 0.5rem;
+    }
+
+    .bubble {
+        padding: 1rem;
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        line-height: 1.6;
+    }
+    .message.user .bubble {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .input-area {
+        padding: 1.5rem;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        gap: 1rem;
+        background: var(--bg-secondary);
+    }
+
+    textarea {
+        flex: 1;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-input);
+        color: var(--text-primary);
+        resize: none;
+        height: 60px;
+    }
+
+    .send-btn {
+        padding: 0 2rem;
+        background: var(--primary-color);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+    }
+    .send-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .pulse {
+        animation: pulse 1.5s infinite;
+    }
+    @@keyframes pulse {
+        0% { opacity: 0.5; }
+        50% { opacity: 1; }
+        100% { opacity: 0.5; }
+    }
+    
+</style>
+
+@code {
+    private string userInput = "";
+    private bool isThinking = false;
+    private bool isInitialized = false;
+    private string streamingText = "";
+    private string? currentSpeakerName = "";
+
+    // Old OnInitialized removed to avoid conflict with OnInitializedAsync
+    // Manager registration is handled in OnInitializedAsync now (or lazily)
+    
+
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendMessage();
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(userInput)) return;
+
+        var input = userInput;
+        userInput = ""; // Clear input immediately
+        isThinking = true;
+
+        try
+        {
+            Manager.AddUserMessage(input);
+            StateHasChanged();
+            await ScrollToBottom();
+
+            // Run the loop: Let agents speak until they yield
+            int turns = 0;
+            while (turns < 10)
+            {
+                // Streaming Logic
+                var stream = Manager.StepStreamAsync();
+                
+                // Temporary holder for the streaming message
+                streamingText = "";
+                // We don't know the speaker yet
+                
+                bool firstToken = true;
+
+                // Throttle UI updates
+                int tokenBufferCount = 0;
+                const int UpdateFrequency = 10; // Update UI every 10 tokens
+
+                await foreach (var token in stream)
+                {
+                    if (firstToken)
+                    {
+                        // Now we know who is speaking
+                        currentSpeakerName = Manager.CurrentSpeaker?.Name;
+                        isThinking = true; // Show the bubble
+                        firstToken = false;
+                    }
+
+                    streamingText += token;
+                    tokenBufferCount++;
+
+                    // Only update UI periodically to reduce flicker
+                    if (tokenBufferCount >= UpdateFrequency)
+                    {
+                        StateHasChanged(); 
+                        await ScrollToBottom(); 
+                        tokenBufferCount = 0;
+
+                         // Mermaid: Update if "mermaid" keyword is present
+                         if (streamingText.Contains("mermaid")) 
+                         {
+                              await JS.InvokeVoidAsync("renderMermaid");
+                         }
+                    }
+                }
+                
+                if (streamingText.Contains("mermaid")) await JS.InvokeVoidAsync("renderMermaid");
+
+                // End of turn
+                if (firstToken) break; // Stream was empty = no speaker selected
+
+                // Finished one agent. streamingText has the full message.
+                // Extract Files
+                var savedFiles = await FileExtractor.ExtractAndSaveFilesAsync(streamingText, currentSessionId);
+                
+                // Smart Pause: If Agent asks a question, stop!
+                // We check existing text BEFORE clearing it
+                bool shouldPause = streamingText.Contains("請問") || streamingText.TrimEnd().EndsWith("？") || streamingText.TrimEnd().EndsWith("?");
+                
+                // AUTO-FORM TRIGGER: If PM asks questions, try to generate a form immediately
+                if (currentSpeakerName == "PM" && shouldPause)
+                {
+                    // Fire and forget (or await if we want to block). 
+                    // We await it to ensure the UI updates before the user tries to type.
+                    // We pass the text directly to avoid history race conditions, but GenerateForm uses History.
+                    // Ideally we should wait a tick for History to update? 
+                    // GroupChatManager usually updates history as it streams or after.
+                    // Let's assume History is up to date or we can rely on streamingText.
+                    // To be safe, we'll wait a brief moment.
+                    await Task.Delay(100); 
+                    await GenerateForm();
+                }
+
+                // Now reset UI state for next turn (or end)
+                streamingText = "";
+                isThinking = false;
+                
+                StateHasChanged();
+                await ScrollToBottom();
+                await JS.InvokeVoidAsync("renderMermaid");
+
+                if (shouldPause)
+                {
+                    break; 
+                }
+
+                await Task.Delay(1500); // Slower pace (1.5s) to allow reading
+                turns++;
+            }
+        }
+        finally
+        {
+            isThinking = false;
+            streamingText = "";
+            StateHasChanged();
+            await ScrollToBottom();
+        }
+    }
+
+    private async Task ScrollToBottom()
+    {
+        await JS.InvokeVoidAsync("eval", "var el = document.getElementById('chatContainer'); el.scrollTop = el.scrollHeight;");
+        await JS.InvokeVoidAsync("renderMermaid");
+    }
+
+    private string currentSessionId = $"Session_{DateTime.Now:yyyyMMdd_HHmmss}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Regenerate ID for new visit
+        currentSessionId = $"Session_{DateTime.Now:yyyyMMdd_HHmmss}";
+        
+        if (!isInitialized)
+        {
+             Manager.AddAgent(PmAgent);
+             Manager.AddAgent(SaAgent);
+             Manager.AddAgent(PgAgent);
+             isInitialized = true;
+        }
+    }
+
+    private void OpenFolder()
+    {
+        FileExtractor.OpenGeneratedFolder(currentSessionId);
+    }
+    
+
+    private bool showQuestionnaire = false;
+    private QuestionnaireData? questionnaireData;
+
+    private async Task GenerateForm()
+    {
+        // Parse the last assistant message
+        var lastMsg = Manager.History.LastOrDefault(m => m.Role == ChatRole.Assistant);
+        if (lastMsg == null || string.IsNullOrWhiteSpace(lastMsg.Text)) return;
+
+        isThinking = true;
+        StateHasChanged();
+        await ScrollToBottom();
+
+        questionnaireData = await QuestionnaireService.ParseToQuestionnaireAsync(lastMsg.Text);
+        isThinking = false;
+        
+        if (questionnaireData != null && questionnaireData.Questions.Any())
+        {
+            showQuestionnaire = true;
+        }
+        StateHasChanged();
+    }
+
+    private async Task SubmitForm(string responseText)
+    {
+        showQuestionnaire = false;
+        userInput = responseText;
+        await SendMessage();
+    }
+
+}
